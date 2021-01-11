@@ -3,8 +3,8 @@
 #include <vector>
 #include "chip8.h"
 
-constexpr size_t INSTR_START  = 512;            /* address of first instruction in memory */
-constexpr std::array<uint8_t, 80> FONTSET = {   /* default fontset */
+constexpr size_t INSTR_START = 512;            /* address of first instruction in memory */
+constexpr std::array<uint8_t, 80> FONTSET = {  /* default fontset */
     0xF0, 0x90, 0x90, 0x90, 0xF0,   /* 0 */
     0x20, 0x60, 0x20, 0x20, 0x70,   /* 1 */
     0xF0, 0x10, 0xF0, 0x80, 0xF0,   /* 2 */
@@ -62,7 +62,6 @@ void Chip8::execute_instruction(void) {
     uint16_t kk = opcode & 0x00FF;
     uint16_t nnn = opcode & 0x0FFF;
 
-    /* Execute a single instruction */
     switch(opcode & 0xF000) {
         /* Miscellaneous instructions */
         case 0x0000:
@@ -164,36 +163,36 @@ void Chip8::execute_instruction(void) {
                 /* 8xy4 (ADD Vx, Vy) */
                 /* ADD register y into register x */
                 case 0x0004:
-                    registers[0xF] = (registers[x] + registers[y]) > 0xFF;
                     registers[x] += registers[y];
+                    registers[0xF] = (registers[x] + registers[y]) > 0xFF;
                     break;
                 
                 /* 8xy5 (OR Vx, Vy) */
                 /* OR register y into register x */
                 case 0x0005:
-                    registers[0xF] = (registers[y] > registers[x]);
                     registers[x] -= registers[y];
+                    registers[0xF] = (registers[y] > registers[x]);
                     break;
                 
                 /* 8xy6 (SHR Vx, {, Vy}) */
                 /* Shift register x right, bit 0 goes into register 0xF */
                 case 0x0006:
-                    registers[0xF] = registers[x] & 1;
                     registers[x] >>= 1;
+                    registers[0xF] = registers[x] & 1;
                     break;
                 
                 /* 8xy7 (SUBN Vx, Vy) */
                 /* subtract register x from register y, result in register y */
                 case 0x0007:
-                    registers[0xF] = (registers[x] > registers[y]);
                     registers[x] = registers[y] - registers[x];
+                    registers[0xF] = (registers[x] > registers[y]);
                     break;
                 
                 /* 8xyE (SHL Vx, {, Vy})*/
                 /* shift register x right, bit 7 goes in register 0xF */
                 case 0x000E:
-                    registers[0xF] = registers[x] >> 7;
                     registers[x] <<= 1;
+                    registers[0xF] = registers[x] >> 7;
                     break;
                 
                 default:
@@ -236,7 +235,9 @@ void Chip8::execute_instruction(void) {
                 for (auto j  = 0; j < 8; j++) {
                     if (pixel & (0x80 >> j)) {
                         uint16_t pos = registers[x] + j + ((registers[y] + i) * 64);
-                        registers[0xF] = display[pos];
+                        if (display[pos]) {
+                            registers[0xF] = 1;
+                        }
                         display[pos] ^= 1;
                     }
                 }
