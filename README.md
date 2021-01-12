@@ -1,18 +1,22 @@
 ﻿# CHIP-8 Interpreter
 A simple CHIP-8 interpreter (emulator) written in C++.
 
-![INVADERS](/screenshots/INVADERS.PNG "INVADERS")
-*INVADERS*
+<p align="center">
+  <img src="https://github.com/benjaminkriebel/CHIP-8-Interpreter/blob/main/screenshots/INVADERS.PNG" alt="INVADERS" />
+</p>
+
+<p align="center">
+  <img src="https://github.com/benjaminkriebel/CHIP-8-Interpreter/blob/main/screenshots/PONG.PNG" alt="PONG" />
+</p>
 
 ## Usage
 You must compile the emulator with SDL in order to run it.
 
-Run:
 ```
 ./chip8.exe <PATH_TO_ROM>
 ```
 
-The ROMs in the `roms` directory are public domain, and were downloaded from https://www.zophar.net/pdroms/chip8.html.
+The ROMs in the `roms` directory are public domain and were downloaded from https://www.zophar.net/pdroms/chip8.html.
 
 ## References
 I referred to the following resouces while working on this project:
