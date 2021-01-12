@@ -1,15 +1,14 @@
 #include <iostream>
 #include <SDL.h>
-#include "chip8.h"
+#include "chip8.hpp"
 
-constexpr int WIDTH = 64;                           /* Display width */
-constexpr int HEIGHT = 32;                          /* Display height */
-constexpr int SCALE = 10;                           /* Factor that width and height are multiplied by */
-constexpr int PRIMARY_COLOR = 0x00000000;           /* Hex code for primary screen color */
-constexpr int SECONDARY_COLOR = 0x0000AA00;         /* Hex code for secondary screen color */
-constexpr int NUM_INSTRUCTIONS = 10;                /* Number of instructions executed per cycle */
-constexpr int NUM_TICKS = 500 / 60;                 /* Number of ticks per cycle (500 Hz / 60 Hz) */
-constexpr std::array<SDL_Keycode, 16> keymap = {    /* Mapping of SDL keycodes to the keypad (0 - F) */
+const int WINDOW_WIDTH     = 64;        /* display width */
+const int WINDOW_HEIGHT    = 32;        /* display height */
+const int WINDOW_SCALE     = 10;        /* factor that width and height are multiplied by */
+const int NUM_INSTRUCTIONS = 10;        /* number of instructions executed per cycle */
+const int NUM_TICKS        = 500 / 60;  /* number of ticks per cycle (500 Hz / 60 Hz) */
+
+const std::array<SDL_Keycode, 16> keymap = { /* ,apping of SDL keycodes to the keypad (0 - F) */
     SDLK_x, SDLK_1, SDLK_2, SDLK_3,
     SDLK_q, SDLK_w, SDLK_e, SDLK_a,  
     SDLK_s, SDLK_d, SDLK_z, SDLK_c,
@@ -18,18 +17,22 @@ constexpr std::array<SDL_Keycode, 16> keymap = {    /* Mapping of SDL keycodes t
 
 bool init_screen(SDL_Window*& window, SDL_Renderer*& renderer, SDL_Texture*& texture) {
     bool success = true;
-    if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
+    
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0) {
         success = false;
     }
-    window = SDL_CreateWindow("CHIP-8 Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH * SCALE, HEIGHT * SCALE, SDL_WINDOW_SHOWN);
+    
+    window = SDL_CreateWindow("CHIP-8 Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH * WINDOW_SCALE, WINDOW_HEIGHT * WINDOW_SCALE, SDL_WINDOW_SHOWN);
     if (!window) {
         success = false;
-    }    
+    }
+    
     renderer = SDL_CreateRenderer(window, -1, 0);
     if (!renderer) {
         success = false;
     }
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, WIDTH, HEIGHT);
+    
+    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, WINDOW_WIDTH, WINDOW_HEIGHT);
     if (!texture) {
         success = false;
     }
@@ -70,6 +73,7 @@ int main(int argc, char** argv) {
                 case SDL_QUIT:
                     running = false;
                     break;
+
                 case SDL_KEYUP:
                 case SDL_KEYDOWN:
                     for (auto i = 0; i < keymap.size(); i++) {
@@ -78,21 +82,23 @@ int main(int argc, char** argv) {
                         }
                     }
                     break;
+                
                 default:
                     break;
             }
         }
 
         if (chip8.get_draw_flag()) {
-            chip8.set_draw_flag(false);
-            std::array<uint32_t, WIDTH * HEIGHT> pixels;
-            for (auto i = 0; i < pixels.size(); i++) {
-                pixels[i] = (chip8.pixel_state(i) ? SECONDARY_COLOR : PRIMARY_COLOR);
+            std::array<uint32_t, WINDOW_WIDTH * WINDOW_HEIGHT> pixel_buf;
+            for (auto i = 0; i < pixel_buf.size(); i++) {
+                pixel_buf[i] = (chip8.get_pixel_state(i) ? 0xFFFFFFFF : 0x00000000);
             }
-            SDL_UpdateTexture(texture, nullptr, reinterpret_cast<void *>(pixels.data()), WIDTH * sizeof(uint32_t));
+            SDL_UpdateTexture(texture, nullptr, reinterpret_cast<void *>(pixel_buf.data()), WINDOW_WIDTH * sizeof(uint32_t));
             SDL_RenderClear(renderer);
             SDL_RenderCopy(renderer, texture, nullptr, nullptr);
             SDL_RenderPresent(renderer);
+
+            chip8.set_draw_flag(false);
         }
 
         int delta_time = SDL_GetTicks() - start_time;

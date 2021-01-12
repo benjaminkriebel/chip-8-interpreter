@@ -1,43 +1,23 @@
 #include <fstream>
-#include <iostream>
 #include <vector>
-#include "chip8.h"
+#include "chip8.hpp"
 
-constexpr size_t INSTR_START = 512;            /* address of first instruction in memory */
-constexpr std::array<uint8_t, 80> FONTSET = {  /* default fontset */
-    0xF0, 0x90, 0x90, 0x90, 0xF0,   /* 0 */
-    0x20, 0x60, 0x20, 0x20, 0x70,   /* 1 */
-    0xF0, 0x10, 0xF0, 0x80, 0xF0,   /* 2 */
-    0xF0, 0x10, 0xF0, 0x10, 0xF0,   /* 3 */
-    0x90, 0x90, 0xF0, 0x10, 0x10,   /* 4 */
-    0xF0, 0x80, 0xF0, 0x10, 0xF0,   /* 5 */
-    0xF0, 0x80, 0xF0, 0x90, 0xF0,   /* 6 */
-    0xF0, 0x10, 0x20, 0x40, 0x40,   /* 7 */
-    0xF0, 0x90, 0xF0, 0x90, 0xF0,   /* 8 */
-    0xF0, 0x90, 0xF0, 0x10, 0xF0,   /* 9 */
-    0xF0, 0x90, 0xF0, 0x90, 0x90,   /* A */
-    0xE0, 0x90, 0xE0, 0x90, 0xE0,   /* B */
-    0xF0, 0x80, 0x80, 0x80, 0xF0,   /* C */
-    0xE0, 0x90, 0x90, 0x90, 0xE0,   /* D */
-    0xF0, 0x80, 0xF0, 0x80, 0xF0,   /* E */
-    0xF0, 0x80, 0xF0, 0x80, 0x80    /* F */
-};
+const size_t PROGRAM_START = 512;   /* address of first instruction in memory */
 
 Chip8::Chip8() :
-    stack(),
     memory(),
-    display(),
+    pixels(),
     registers(),
     keys(),
-    sp(0),
-    pc(INSTR_START),
+    stack(),
+    pc(PROGRAM_START),
     index(0),
     delay_timer(0),
     sound_timer(0),
     draw_flag(false),
-    mt(std::random_device()())
+    gen(std::random_device()())
 {
-    std::copy(FONTSET.begin(), FONTSET.end(), memory.begin());
+    std::copy(fontset.begin(), fontset.end(), memory.begin());
 }
 
 void Chip8::load_rom(const std::string& filepath) {
@@ -49,7 +29,7 @@ void Chip8::load_rom(const std::string& filepath) {
 
     std::vector<uint8_t> buffer(filesize);
     file.read(reinterpret_cast<char *>(buffer.data()), filesize);
-    std::copy(buffer.begin(), buffer.end(), memory.begin() + INSTR_START);
+    std::copy(buffer.begin(), buffer.end(), memory.begin() + PROGRAM_START);
 }
 
 void Chip8::execute_instruction(void) {
@@ -63,20 +43,20 @@ void Chip8::execute_instruction(void) {
     uint16_t nnn = opcode & 0x0FFF;
 
     switch(opcode & 0xF000) {
-        /* Miscellaneous instructions */
         case 0x0000:
             switch(opcode) {
                 /* 00E0 (CLS) */
-                /* Clear the screen */
+                /* Clear the display */
                 case 0x00E0:
-                    display.fill(0);
+                    pixels.fill(0);
                     draw_flag = true;
                     break;
 
                 /* 00EE (RET) */
-                /* Return from subroutine call */
+                /* Return from a subroutine */
                 case 0x00EE:
-                    pc = stack[--sp];
+                    pc = stack.top();
+                    stack.pop();
                     break;
                 
                 default:
@@ -85,20 +65,20 @@ void Chip8::execute_instruction(void) {
             break;
 
         /* 1nnn (JP addr) */
-        /* Jump to address */
+        /* Jump to location nnn */
         case 0x1000:
             pc = nnn;
             break;
 
         /* 2nnn (CALL addr) */
-        /* Jump to subroutine */
+        /* Call subroutine at nnn */
         case 0x2000:
-            stack[sp++] = pc;
+            stack.push(pc);
             pc = nnn;
             break;
 
         /* 3xkk (SE Vx, byte) */
-        /* Skip next instructions if register x equals constant */
+        /* Skip next instruction if Vx = kk */
         case 0x3000:
             if (registers[x] == kk) {
                 pc += 2;
@@ -106,7 +86,7 @@ void Chip8::execute_instruction(void) {
             break;
         
         /* 4xkk (SNE Vx, byte) */
-        /* Skip next instruction if register x does not equal constant */
+        /* Skip next instruction if Vx != kk */
         case 0x4000:
             if (registers[x] != kk) {
                 pc += 2;
@@ -114,7 +94,7 @@ void Chip8::execute_instruction(void) {
             break;
         
         /* 5xy0 (SE Vx, Vy) */
-        /* Skip next instruction if register x equals register y */
+        /* Skip next instruction if Vx != Vy */
         case 0x5000:
             if (registers[x] == registers[y]) {
                 pc += 2;
@@ -122,74 +102,73 @@ void Chip8::execute_instruction(void) {
             break;
         
         /* 6xkk (LD Vx, byte) */
-        /* Move constant to register x */
+        /* Set Vx = kk */
         case 0x6000:
             registers[x] = kk;
             break;
         
         /* 7xkk (ADD Vx, byte) */
-        /* Add constant to register x */
+        /* Set Vx = Vx + kk */
         case 0x7000:
             registers[x] += kk;
             break;
         
-        /* Logical instructions */
         case 0x8000:
             switch (n) {
                 /* 8xy0 (LD Vx, Vy) */
-                /* Move register Vy into Vx */
+                /* Set Vx = Vy */
                 case 0x0000:
                     registers[x] = registers[y];
                     break;
                 
                 /* 8xy1 (OR Vx, Vy) */
-                /* OR register Vy into Vx */
+                /* Set Vx = Vx OR Vy */
                 case 0x0001:
                     registers[x] |= registers[y];
                     break;
                 
                 /* 8xy2 (AND Vx, Vy) */
-                /* AND register Vy into Vx */
+                /* Set Vx = Vx AND Vy */
                 case 0x0002:
                     registers[x] &= registers[y];
                     break;
                 
                 /* 8xy3 (XOR Vx, Vy) */
-                /* XOR register Vy into Vx */
+                /* Set Vx = Vx XOR Vy */
                 case 0x0003:
                     registers[x] ^= registers[y];
                     break;
                 
                 /* 8xy4 (ADD Vx, Vy) */
-                /* ADD register y into register x */
+                /* Set Vx = Vx + Vy, set VF = carry */
                 case 0x0004:
                     registers[x] += registers[y];
                     registers[0xF] = (registers[x] + registers[y]) > 0xFF;
                     break;
                 
-                /* 8xy5 (OR Vx, Vy) */
-                /* OR register y into register x */
+                /* 8xy5 (SUB Vx, Vy) */
+                /* Set Vx = Vx - Vy, set VF = NOT borrow*/
                 case 0x0005:
                     registers[x] -= registers[y];
-                    registers[0xF] = (registers[y] > registers[x]);
+                    registers[0xF] = (registers[x] > registers[y]);
                     break;
                 
                 /* 8xy6 (SHR Vx, {, Vy}) */
-                /* Shift register x right, bit 0 goes into register 0xF */
+                /* Set Vx = Vx SHR 1, store LSB of Vx in VF */
                 case 0x0006:
                     registers[x] >>= 1;
                     registers[0xF] = registers[x] & 1;
                     break;
                 
                 /* 8xy7 (SUBN Vx, Vy) */
-                /* subtract register x from register y, result in register y */
+                /* Set Vx = Vy - Vx, set VF = NOT borrow */
                 case 0x0007:
                     registers[x] = registers[y] - registers[x];
-                    registers[0xF] = (registers[x] > registers[y]);
+                    registers[0xF] = (registers[y] > registers[x]);
                     break;
                 
-                /* 8xyE (SHL Vx, {, Vy})*/
-                /* shift register x right, bit 7 goes in register 0xF */
+                /* 8xyE (SHL Vx, {, Vy}) */
+                /* Set Vx = Vx SHL 1 */
                 case 0x000E:
                     registers[x] <<= 1;
                     registers[0xF] = registers[x] >> 7;
@@ -201,7 +180,7 @@ void Chip8::execute_instruction(void) {
             break;
         
         /* 9xy0 (SNE Vx, Vy) */
-        /* Skip if register x does not equal register y */
+        /* Skip next instruction if Vx != Vy */
         case 0x9000:
             if (registers[x] != registers[y]) {
                 pc += 2;
@@ -209,47 +188,51 @@ void Chip8::execute_instruction(void) {
             break;
         
         /* Annn (LD I, addr) */
-        /* Load index register with constant nnn */
+        /* Set I = nnn */
         case 0xA000:
             index = nnn;
             break;
         
         /* Bnnn (JP V0, addr) */
-        /* Jump to address nnn plus register 0 */
+        /* Jump to location nnn + V0 */
         case 0xB000:
-            pc = (nnn + registers[0]);
+            pc = nnn + registers[0];
             break;
         
         /* Cxkk (RND Vx, byte) */
-        /* and random byte with a constant, result in register x */
+        /* Set Vx = random byte AND kk */
         case 0xC000:
-            registers[x] = std::uniform_int_distribution<>(0x00, 0xFF)(mt) & kk;
+            registers[x] = std::uniform_int_distribution<>(0x00, 0xFF)(gen) & kk;
             break;
     
         /* Dxyn (DRW, Vx, Vy, nibble) */
-        /* Draw a sprite at location (register x, register y) with height n */
-        case 0xD000:
+        /* Display n-byte sprite starting at memory location I at *Vx, Vy), set VF = collision */
+        case 0xD000: {
+            uint16_t x_pos = registers[x];
+            uint16_t y_pos = registers[y];
+
             registers[0xF] = 0;
             for (auto i = 0; i < n; i++) {
                 uint8_t pixel = memory[index + i];
                 for (auto j  = 0; j < 8; j++) {
                     if (pixel & (0x80 >> j)) {
-                        uint16_t pos = registers[x] + j + ((registers[y] + i) * 64);
-                        if (display[pos]) {
+                        uint16_t coord = x_pos + j + ((y_pos + i) * 64) % 2048;
+                        if (pixels[coord] == 1) {
                             registers[0xF] = 1;
                         }
-                        display[pos] ^= 1;
+                        pixels[coord] ^= 1;
                     }
                 }
             }
+
             draw_flag = true;
             break;
+        }
         
-        /* Keypad instructions */
         case 0xE000: {
             switch (kk) {
                 /* Ex9E (SKP Vx) */
-                /* Skip if key in register x is pressed */
+                /* Skip next instruction if key with the value of Vx is pressed */
                 case 0x009E:
                     if (keys[registers[x]]) {
                         pc += 2;
@@ -257,7 +240,7 @@ void Chip8::execute_instruction(void) {
                     break;
                 
                 /* ExA1 (SKNP Vx) */
-                /* Skip if key in register x is not pressed */
+                /* Skip next instruction if key with the value of Vx is not pressed */
                 case 0x00A1:
                     if (!keys[registers[x]]) {
                         pc += 2;
@@ -270,17 +253,16 @@ void Chip8::execute_instruction(void) {
             break;
         }
 
-        /* Miscellaneous instructions */
         case 0xF000:
             switch (kk) {
                 /* Fx07 (LD Vx, DT) */
-                /* Get delay timer into register x */
+                /* Set Vx = delay timer value */
                 case 0x0007:
                     registers[x] = delay_timer;
                     break;
                 
-                /* Fx0a (LD Vx, K) */
-                /* Wait for keypress, put key in register x */
+                /* Fx0A (LD Vx, K) */
+                /* Wait for a key press, store the value of the key in Vx */
                 case 0x000A: {
                     bool waiting = true;
                     for (auto i = 0; i < keys.size(); i++) {
@@ -290,36 +272,40 @@ void Chip8::execute_instruction(void) {
                             break;
                         }
                     }
-                    if (waiting) pc -= 2;
+
+                    if (waiting) {
+                        pc -= 2;
+                    }
+                    
                     break;
                 }
 
                 /* Fx15 (LD DT, Vx) */
-                /* Set the delay timer to register x */
+                /* Set delay timer = Vx */
                 case 0x0015:
                     delay_timer = registers[x];
                     break;
                 
                 /* Fx18 (LD ST, Vx) */
-                /* Set the sound timer to register x */
+                /* Set sound timer = Vx */
                 case 0x0018:
                     sound_timer = registers[x];
                     break;
                 
                 /* Fx1E (ADD I, Vx) */
-                /* Add register x to the index register */
+                /* Set I = I + Vx */
                 case 0x001E:
                     index += registers[x];
                     break;
                 
                 /* Fx29 (LD F, Vx) */
-                /* Point the index register to the sprite for hex character in register x */
+                /* Set I = location of sprite for digit Vx */
                 case 0x0029:
                     index = registers[x] * 5;
                     break;
                 
                 /* Fx33 (LD B, Vx) */
-                /* Store the bcd representation of register x starting from the address in the index register */
+                /* Store BCD representation of Vx in memory locations I, I + 1, I + 2 */
                 case 0x0033:
                     memory[index] = registers[x] / 100;
                     memory[index + 1] = (registers[x] / 10) % 10;
@@ -327,7 +313,7 @@ void Chip8::execute_instruction(void) {
                     break;
                 
                 /* Fx55 (LD [I], Vx) */
-                /* Store registers 0 through x starting from the address in the index register */
+                /* Store registers V0 through Vx in memory starting at location I */
                 case 0x0055:
                     for (auto i = 0; i <= x; i++) {
                         memory[index + i] = registers[i];
@@ -335,7 +321,7 @@ void Chip8::execute_instruction(void) {
                     break;
                 
                 /* Fx65 (LD Vx, [I]) */
-                /* load registers 0 through x starting from the address in the index register */
+                /* Read registers V0 through Vx from memory starting at location I */
                 case 0x0065:
                     for (auto i = 0; i <= x; i++) {
                         registers[i] = memory[index + i];
@@ -353,22 +339,26 @@ void Chip8::execute_instruction(void) {
 }
 
 void Chip8::decrement_timers(void) {
-    if (delay_timer > 0) delay_timer--;
-    if (sound_timer > 0) sound_timer--;
+    if (delay_timer > 0) {
+        delay_timer--;
+    }
+    if (sound_timer > 0) {
+        sound_timer--;
+    }
 }
 
-uint8_t Chip8::pixel_state(const size_t& pixel) {
-    return display[pixel];
+uint8_t Chip8::get_pixel_state(const size_t& i) {
+    return pixels[i];
 }
 
-void Chip8::handle_keypress(const size_t& key) {
-    keys[key] = !keys[key];
+void Chip8::handle_keypress(const size_t& i) {
+    keys[i] = !keys[i];
 }
 
 bool Chip8::get_draw_flag(void) {
     return draw_flag;
 }
 
-void Chip8::set_draw_flag(const bool& state) {
-    draw_flag = state;
+void Chip8::set_draw_flag(const bool& value) {
+    draw_flag = value;
 }
