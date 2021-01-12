@@ -2,7 +2,6 @@
 A simple CHIP-8 interpreter (emulator) written in C++.
 
 ![INVADERS](/screenshots/INVADERS.PNG "INVADERS")
-*INVADERS*
 
 ## Usage
 You must compile the emulator with SDL in order to run it.
