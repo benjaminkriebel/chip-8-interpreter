@@ -5,10 +5,10 @@
 constexpr int WIDTH = 64;                           /* Display width */
 constexpr int HEIGHT = 32;                          /* Display height */
 constexpr int SCALE = 10;                           /* Factor that width and height are multiplied by */
-constexpr int PRIMARY = 0x00000000;                 /* Hex code for primary screen color */
-constexpr int SECONDARY = 0x0000AA00;               /* Hex code for secondary screen color */
+constexpr int PRIMARY_COLOR = 0x00000000;           /* Hex code for primary screen color */
+constexpr int SECONDARY_COLOR = 0x0000AA00;         /* Hex code for secondary screen color */
 constexpr int NUM_INSTRUCTIONS = 10;                /* Number of instructions executed per cycle */
-constexpr int TICKS = 500 / 60;                     /* Number of ticks per cycle (500 Hz / 60 Hz) */
+constexpr int NUM_TICKS = 500 / 60;                 /* Number of ticks per cycle (500 Hz / 60 Hz) */
 constexpr std::array<SDL_Keycode, 16> keymap = {    /* Mapping of SDL keycodes to the keypad (0 - F) */
     SDLK_x, SDLK_1, SDLK_2, SDLK_3,
     SDLK_q, SDLK_w, SDLK_e, SDLK_a,  
@@ -18,22 +18,17 @@ constexpr std::array<SDL_Keycode, 16> keymap = {    /* Mapping of SDL keycodes t
 
 bool init_screen(SDL_Window*& window, SDL_Renderer*& renderer, SDL_Texture*& texture) {
     bool success = true;
-
     if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
-        std::cout << "Error: Unable to intiialize SDL  " << SDL_GetError() << "\n";
         success = false;
     }
-    
     window = SDL_CreateWindow("CHIP-8 Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH * SCALE, HEIGHT * SCALE, SDL_WINDOW_SHOWN);
     if (!window) {
         success = false;
     }    
-    
     renderer = SDL_CreateRenderer(window, -1, 0);
     if (!renderer) {
         success = false;
     }
-    
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, WIDTH, HEIGHT);
     if (!texture) {
         success = false;
@@ -57,7 +52,7 @@ int main(int argc, char** argv) {
     SDL_Texture* texture = nullptr;
 
     if (!init_screen(window, renderer, texture)) {
-        std::cout << "Error: Unable to create screen with SDL " << SDL_GetError() << "\n";
+        std::cout << "Error: Unable to create screen " << SDL_GetError() << "\n";
         SDL_Quit();
         return 1;
     }
@@ -65,7 +60,6 @@ int main(int argc, char** argv) {
     bool running = true;
     while (running) {
         int start_time = SDL_GetTicks();
-
         for (size_t i = 0; i < NUM_INSTRUCTIONS; i++) {
             chip8.execute_instruction();
         }
@@ -76,7 +70,6 @@ int main(int argc, char** argv) {
                 case SDL_QUIT:
                     running = false;
                     break;
-
                 case SDL_KEYUP:
                 case SDL_KEYDOWN:
                     for (auto i = 0; i < keymap.size(); i++) {
@@ -85,28 +78,27 @@ int main(int argc, char** argv) {
                         }
                     }
                     break;
-                
-                default: break;
+                default:
+                    break;
             }
         }
 
         if (chip8.get_draw_flag()) {
+            chip8.set_draw_flag(false);
             std::array<uint32_t, WIDTH * HEIGHT> pixels;
             for (auto i = 0; i < pixels.size(); i++) {
-                pixels[i] = (chip8.pixel_state(i) ? SECONDARY : PRIMARY);
+                pixels[i] = (chip8.pixel_state(i) ? SECONDARY_COLOR : PRIMARY_COLOR);
             }
             SDL_UpdateTexture(texture, nullptr, reinterpret_cast<void *>(pixels.data()), WIDTH * sizeof(uint32_t));
             SDL_RenderClear(renderer);
             SDL_RenderCopy(renderer, texture, nullptr, nullptr);
             SDL_RenderPresent(renderer);
-            
-            chip8.set_draw_flag(false);
         }
 
         int delta_time = SDL_GetTicks() - start_time;
-        if (TICKS > delta_time) {
+        if (NUM_TICKS > delta_time) {
             chip8.decrement_timers();
-            SDL_Delay(TICKS - delta_time);
+            SDL_Delay(NUM_TICKS - delta_time);
         }
     }
 
