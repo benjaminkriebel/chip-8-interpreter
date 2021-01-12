@@ -5,6 +5,10 @@ A simple CHIP-8 interpreter (emulator) written in C++.
   <img src="https://github.com/benjaminkriebel/CHIP-8-Interpreter/blob/main/screenshots/INVADERS.PNG" alt="INVADERS" />
 </p>
 
+<p align="center">
+  <img src="https://github.com/benjaminkriebel/CHIP-8-Interpreter/blob/main/screenshots/PONG.PNG" alt="PONG" />
+</p>
+
 ## Usage
 You must compile the emulator with SDL in order to run it.
 
