@@ -2,13 +2,12 @@
 A simple CHIP-8 interpreter (emulator) written in C++.
 
 <p align="center">
-  <img src="https://github.com/benjaminkriebel/CHIP-8-Interpreter/blob/main/screenshots/INVADERS.PNG" alt="INVADERS"/>
+  <img src="https://github.com/benjaminkriebel/CHIP-8-Interpreter/blob/main/screenshots/INVADERS.PNG" alt="INVADERS" />
 </p>
 
 ## Usage
 You must compile the emulator with SDL in order to run it.
 
-Run:
 ```
 ./chip8.exe <PATH_TO_ROM>
 ```
