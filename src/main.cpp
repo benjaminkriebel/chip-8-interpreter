@@ -2,13 +2,13 @@
 #include <SDL.h>
 #include "chip8.hpp"
 
-const int WINDOW_WIDTH     = 64;        /* display width */
-const int WINDOW_HEIGHT    = 32;        /* display height */
-const int WINDOW_SCALE     = 10;        /* factor that width and height are multiplied by */
+const int WIDTH            = 64;        /* display width */
+const int HEIGHT           = 32;        /* display height */
+const int SCALE            = 10;        /* factor that width and height are multiplied by */
 const int NUM_INSTRUCTIONS = 10;        /* number of instructions executed per cycle */
 const int NUM_TICKS        = 500 / 60;  /* number of ticks per cycle (500 Hz / 60 Hz) */
 
-const std::array<SDL_Keycode, 16> keymap = { /* ,apping of SDL keycodes to the keypad (0 - F) */
+const std::array<SDL_Keycode, 16> keymap = {    /* mapping of SDL keycodes to the keypad (0 - F) */
     SDLK_x, SDLK_1, SDLK_2, SDLK_3,
     SDLK_q, SDLK_w, SDLK_e, SDLK_a,  
     SDLK_s, SDLK_d, SDLK_z, SDLK_c,
@@ -18,11 +18,7 @@ const std::array<SDL_Keycode, 16> keymap = { /* ,apping of SDL keycodes to the k
 bool init_screen(SDL_Window*& window, SDL_Renderer*& renderer, SDL_Texture*& texture) {
     bool success = true;
     
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0) {
-        success = false;
-    }
-    
-    window = SDL_CreateWindow("CHIP-8 Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH * WINDOW_SCALE, WINDOW_HEIGHT * WINDOW_SCALE, SDL_WINDOW_SHOWN);
+    window = SDL_CreateWindow("CHIP-8 Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH * SCALE, HEIGHT * SCALE, SDL_WINDOW_SHOWN);
     if (!window) {
         success = false;
     }
@@ -32,7 +28,7 @@ bool init_screen(SDL_Window*& window, SDL_Renderer*& renderer, SDL_Texture*& tex
         success = false;
     }
     
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, WINDOW_WIDTH, WINDOW_HEIGHT);
+    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, WIDTH, HEIGHT);
     if (!texture) {
         success = false;
     }
@@ -50,6 +46,10 @@ int main(int argc, char** argv) {
     Chip8 chip8;
     chip8.load_rom(filepath);
 
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0) {
+        std::cout << "Error: SDL Could not initialize " << SDL_GetError() << "\n";
+    }
+
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
     SDL_Texture* texture = nullptr;
@@ -63,6 +63,7 @@ int main(int argc, char** argv) {
     bool running = true;
     while (running) {
         int start_time = SDL_GetTicks();
+
         for (size_t i = 0; i < NUM_INSTRUCTIONS; i++) {
             chip8.execute_instruction();
         }
@@ -89,11 +90,11 @@ int main(int argc, char** argv) {
         }
 
         if (chip8.get_draw_flag()) {
-            std::array<uint32_t, WINDOW_WIDTH * WINDOW_HEIGHT> pixel_buf;
+            std::array<uint32_t, WIDTH * HEIGHT> pixel_buf;
             for (auto i = 0; i < pixel_buf.size(); i++) {
                 pixel_buf[i] = (chip8.get_pixel_state(i) ? 0xFFFFFFFF : 0x00000000);
             }
-            SDL_UpdateTexture(texture, nullptr, reinterpret_cast<void *>(pixel_buf.data()), WINDOW_WIDTH * sizeof(uint32_t));
+            SDL_UpdateTexture(texture, nullptr, reinterpret_cast<void *>(pixel_buf.data()), WIDTH * sizeof(uint32_t));
             SDL_RenderClear(renderer);
             SDL_RenderCopy(renderer, texture, nullptr, nullptr);
             SDL_RenderPresent(renderer);
